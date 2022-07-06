@@ -1,0 +1,59 @@
+1：git init でそのディレクトリがgit下になる
+.gitファイルが作られる
+ls -aで確認できる
+
+2：git addでワーキングエリアからステージングエリアへ
+ファイルは選択してパスをadd の後ろに
+ディレクトリ内の全てなら＊でOK
+
+3：git commitでステージングエリアから全ての変更をリポジドリへ
+ーｍ””でメッセージを追加
+
+4：ディレクトリ内に.ignoreで無視するファイルの指定
+.gnoreファイル作成後に管理したくないファイル名を記載する
+個別でadd commitが必要
+
+5：commit後に前のバージョンにもどす
+git log --oneline でcommitを確認
+そのハッシュ値4ケタを覚えて、git checkout 番号で別のbranchで
+そのバージョンが作成される（）がついており仮の作成
+git branch で確認できる
+
+
+6：再度最新にもどす
+もともとmastebranchで作っていた場合はgit checkout master
+
+7:過去のverを修正してそのまま使う
+修正してcommit後にmasterに移動,
+git merge 
+conflictするから修正してcommit
+
+
+8:削除後に戻すのは(commit後に)
+git checkout -- file名
+
+9:github
+githubでリモートリポを作成後に
+$ git clone url
+でカレントディレクトリにgit管理リポができる
+
+git remote -vで
+fetchとpush先がわかる
+
+10:リモートの更新
+まずリモートからデータ取得
+git pull リモートのリポ　そのブランチ
+cloneした場合はorigin master
+
+その後リモートを更新
+git push リモートのリポ　今触っているブランチ
+（普通はブランチをきって作業しているからmasterでなはい）
+
+
+
+
+
+
+
+100:git管理ファイルを削除。管理をやめる
+rm -rf .git/
