@@ -48,7 +48,15 @@ cloneした場合はorigin master
 その後リモートを更新
 git push リモートのリポ　今触っているブランチ
 （普通はブランチをきって作業しているからmasterでなはい）
+（強制的にpushは git -f push origin master)
 
+11:conflictしたら
+まずpullして気づく
+git pull origin master
+
+headの箇所を確認し修正保存
+
+再度add, commit, push
 
 
 
