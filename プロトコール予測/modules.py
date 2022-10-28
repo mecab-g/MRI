@@ -8,6 +8,46 @@ import fasttext
 from sklearn.decomposition import PCA
 from sentence_transformers import models, losses, evaluation, SentenceTransformer
 
+#onehotをつなげる
+def one_hot(df, col):
+    categories = df[col].unique()
+    print(categories)
+    df[col] = pd.Categorical(df[col], categories=categories)
+    df_c = pd.get_dummies(df[col])
+    df = pd.concat([df, df_c], axis=1)
+    del df[col]
+
+    return df
+
+#TextAugumententiaon
+
+#dfとラベルを入れると目的が表示される。同じラベルごとのdfが2つ出力される
+def ShowList(df, label):
+    df = df[df['label']==label].reset_index(drop=True)
+    print(len(df))
+    for i in range(len(df)):
+        print(i+1)
+        print (df.loc[i]['purpose'])
+        print("=")
+        #df2 = df.copy()
+    
+    return df
+
+#目的を書き換えたリストを2つとdfを2つ入力で合わせたdfが出力される。
+#年齢は半分はクラスごとの平均の正規分布からランダムに変更
+def makeAug(df, List):
+    df2 = df.copy()
+    #df.loc[:,'purpose']= List1
+    #df2.loc[:,'purpose']= List2
+    num=int(df2['year'].mean())
+    generator = np.random.default_rng()
+    rnd = generator.normal(loc=num, scale=10, size=len(df))
+    df2.loc[:,'year']=rnd
+    df = pd.concat([df, df2], ignore_index=True)
+    df['year'] = df['year'].round().astype('int')
+    df.loc[:,'purpose']= List
+    
+    return df
 
 
 
@@ -26,16 +66,6 @@ def is_japanise(str):
             return True
         else:
             return False
-
-#ある単語のあるカラムをそのカラムにする（予約）
-def colchoice2(df,word1,word2=None):
-    if word2==None:
-        word2=word1
-    ss = [item for item in df.columns if item.find(word1)!= -1]
-    sss = [item for item in ss if item.find(word2)!= -1]
-    bb = " ".join([str(_) for _ in sss])
-    return bb 
-
 #wakatigaki        
 def wakati(Str):
     import MeCab
@@ -118,7 +148,7 @@ class SentenceBertJapanese:
             all_embeddings.extend(sentence_embeddings)
 
         return torch.stack(all_embeddings).numpy()
-    
+
 class FastText_Vectrizer:
     def __init__(self, model):
         self.ft = fasttext.load_model(model)
@@ -140,7 +170,7 @@ def FOR_LIST(df):
         LIST=[str(x)for x in LIST]
         LIST=[x for x in LIST if x != 'nan']
         return LIST
-    
+
 def TrainData(PATH):
         import pandas as pd
         import datetime
@@ -148,41 +178,8 @@ def TrainData(PATH):
         import mojimoji
 
 
-        df=pd.read_csv(PATH,encoding='ms932')  
-        df=df.rename(columns={'受付':'accept','年齢':'age','性':'sex','部位':'position','方法':'method','臨床診断':'diagnosis','依頼目的':'purpose','依頼科':'section'})
-        pr=colchoice2(df,'実施','室')
-        df=df.rename(columns={pr:'room'})
-        bo=colchoice2(df,'予約')
-        df=df.rename(columns={bo:'book'})
-        st=colchoice2(df,'開始')
-        df=df.rename(columns={st:'start'})
-        en=colchoice2(df,'終了')
-        df=df.rename(columns={en:'end'})
-    
-        delete =[]
-        for i in df.columns.values:#日本語,記号のあるcolumnsは除外リストへ
-            if is_japanise(i)==True:
-                delete.append(i)
-        df = df.drop(columns = delete)
-    
-        df['EmegencyorNight_exam']=[0if s =='0:00' else 1 for s in df['book']]#緊急またはやしんは0その他は1
-        df['method']=[0 if s =='単純' else 1 for s in df['method']]
-        df['sex']=[0 if s =='男' else 1 for s in df['sex']]
-        df['book']=(df['book'].where(df['book']!='0:00',df['accept']))#予約が０時（緊急検査）は受付＝緊急にして遅刻０へ
-        df['book']=(df['book'].where(df['book']!='18:00',df['accept']))#やしんの枠は遅刻を除外
-        df['book']=(df['book'].where(df['book']!='18:30',df['accept']))
-        df['book']=(df['book'].where(df['book']!='19:00',df['accept']))
-        df['book']=(df['book'].where(df['book']!='19:30',df['accept']))
-        df['book']=pd.to_datetime(df['book'],format='%H:%M')#各時間を分単位に変更
-        df['end']=pd.to_datetime(df['end'],format='%H:%M')
-        df['accept']=pd.to_datetime(df['accept'],format='%H:%M')
-        df['start']=pd.to_datetime(df['start'],format='%H:%M')
-        df_time=df[['book','end','start','accept']]#timedf作成
-        df_delay=(df_time['accept']-df_time['book']).map(lambda x: x.total_seconds()/60.0)#待ち時間
-        df_exam=(df_time['end']-df_time['start']).map(lambda x: x.total_seconds()/60.0)#検査時間
-        df=pd.concat([df, df_delay,df_exam],axis=1)
-        df=df.rename(columns={0:'delay_time',1:'exam_time'})
-        df['delay_time']=(df['delay_time'].where(df['delay_time']>0.0,0.0))#予約より先に受け付けた場合はすべてdelay0
+        df=pd.read_csv(PATH,encoding='ms932') 
+        df['diagnosis']=df['diagnosis'].map(list(set()))
         
         df['diagnosis'] = df['diagnosis'].map(mojimoji.zen_to_han)
         df['purpose'] = df['purpose'].map(mojimoji.zen_to_han)
@@ -190,6 +187,8 @@ def TrainData(PATH):
         df['purpose']=df['purpose'].str.replace(' ', '')
         df['diagnosis']=df['diagnosis'].str.lower()
         df['purpose']=df['purpose'].str.lower()
+       
+        
         
         
         df.loc[df['section'].str.contains('総診'), 'section'] = '救急'
@@ -197,18 +196,19 @@ def TrainData(PATH):
         
         
         return df
-    
+
 def     one_hot(df, col):
         categories = df[col].unique()
-        #print(categoreis)
+        print(categories)
         df[col] = pd.Categorical(df[col], categories=categories)
         df_c = pd.get_dummies(df[col])
-        #df = pd.concat([df, df_c], axis=1)
-        #del df[col]
+        df = pd.concat([df, df_c], axis=1)
+        del df[col]
     
-        return df_c
+        return df
 
 
+###
 
 def position_transform(df):
         a = df["position"].unique()
@@ -301,7 +301,7 @@ def position_transform(df):
         
 
         return df
-
+###
 section_dic={  "脳内":"neurology", 
                "内泌": "endocrinology",
                "救急": "emergency",
@@ -330,15 +330,12 @@ section_dic={  "脳内":"neurology",
                "口外": "dental surgery",
                "形外": "plastic surgery",
   }    
-    
+
 def rename_section(df):
     df.rename(columns=section_dic, inplace=True)
-    #df.loc[df['section'].str.contains('総診'), 'section'] = '救急'
-    #df.loc[df['section'].str.contains('ペイン'), 'section'] = '麻酔'
     return df
 
 def exam_preprosses(df):
-    df=position_transform(df)  
     df=rename_section(df)
     
     df_section =one_hot(df,'section')
@@ -366,10 +363,7 @@ def exam_preprosses(df):
     position_pca=pd.DataFrame(position_values,columns=col_name)
     
     df = pd.concat([df, section_pca,position_pca], axis=1)
-    
-    delete_columns=["book", "accept", "room", "start", "end", "delay_time"]
-    df = df.drop(columns = delete_columns)
-    
+
     return df
 
 
