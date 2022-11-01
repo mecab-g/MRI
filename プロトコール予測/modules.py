@@ -50,24 +50,8 @@ def makeAug(df, List):
     return df
 
 
-
-
-
-
-
-
-def is_japanise(str):
-    import unicodedata
-    
-    for ch in str:
-        name = unicodedata.name(ch)
-        
-        if'CJK UNIFIED'in name or'HIRAGANA'in name or'KATAKANA'in name or'BLACK'in name or 'DIGIT' in name or 'SQUARE' in name:
-            return True
-        else:
-            return False
-#wakatigaki        
-def wakati(Str):
+#わかちがき        
+def wakachi(Str):
     import MeCab
     stop_words=  [',','｡','.','右','左','*','(',')','委任',':','。','、',',','.','+']
     tagger = MeCab.Tagger(r"-d /var/lib/mecab/dic/ipadic-utf8/ -u dic/MANBYO_201907_Dic-utf8.dic -Owakati")              
@@ -88,7 +72,7 @@ def wakati(Str):
 #名詞のみ
 def meishi(text):
     import MeCab
-    stop_words= [',','｡','.','右','左','両側','*','(',')','委任',':','。','、',',','.','+','疑い']
+    stop_words= [',','｡','.','右','左','両側','*','(',')','委任',':','。','、',',','.','+','疑い','･']
     mecab = MeCab.Tagger(r"-d /var/lib/mecab/dic/ipadic-utf8/ -u dic/MANBYO_201907_Dic-utf8.dic")
     result = mecab.parse(text)
     lines = result.split('\n')
@@ -113,6 +97,21 @@ def meishi(text):
     #words = ' '.join(words)
     return(words)
 
+# fastTextでベクトル化する
+# モデルを入れて、インスタンス化しVectrizerで単語リストを入れるとベクトルが平均されて出力される
+class FastText_Vectrizer:
+    def __init__(self, model):
+        self.ft = fasttext.load_model(model)
+        
+    def Vectrizer(self, wordlist):
+        #平均ベクトル出力
+        veclists = [] # 単語ベクトル出力
+        for word in wordlist:
+            W = self.ft[word]
+            veclists.append(np.array(W,dtype='float16'))
+        doc_vec=np.array(veclists).mean(axis=0)
+        
+        return   (doc_vec)   
 
 #sBERTでモデル作成して保存
 class SentenceBertJapanese:
@@ -149,19 +148,6 @@ class SentenceBertJapanese:
 
         return torch.stack(all_embeddings).numpy()
 
-class FastText_Vectrizer:
-    def __init__(self, model):
-        self.ft = fasttext.load_model(model)
-        
-    def Vectrizer(self, wordlist):
-        #平均ベクトル出力
-        veclists = [] # 単語ベクトル出力
-        for word in wordlist:
-            W = self.ft[word]
-            veclists.append(np.array(W,dtype='float16'))
-        doc_vec=np.array(veclists).mean(axis=0)
-        
-        return   (doc_vec)   
 
 
 #カラムをリストへ
@@ -171,136 +157,8 @@ def FOR_LIST(df):
         LIST=[x for x in LIST if x != 'nan']
         return LIST
 
-def TrainData(PATH):
-        import pandas as pd
-        import datetime
-        from sklearn.preprocessing import OneHotEncoder
-        import mojimoji
 
 
-        df=pd.read_csv(PATH,encoding='ms932') 
-        df['diagnosis']=df['diagnosis'].map(list(set()))
-        
-        df['diagnosis'] = df['diagnosis'].map(mojimoji.zen_to_han)
-        df['purpose'] = df['purpose'].map(mojimoji.zen_to_han)
-        df['diagnosis']=df['diagnosis'].str.replace(' ', '')
-        df['purpose']=df['purpose'].str.replace(' ', '')
-        df['diagnosis']=df['diagnosis'].str.lower()
-        df['purpose']=df['purpose'].str.lower()
-       
-        
-        
-        
-        df.loc[df['section'].str.contains('総診'), 'section'] = '救急'
-        df.loc[df['section'].str.contains('ﾍﾟｲﾝ'), 'section'] = '麻酔'
-        
-        
-        return df
-
-def     one_hot(df, col):
-        categories = df[col].unique()
-        print(categories)
-        df[col] = pd.Categorical(df[col], categories=categories)
-        df_c = pd.get_dummies(df[col])
-        df = pd.concat([df, df_c], axis=1)
-        del df[col]
-    
-        return df
-
-
-###
-
-def position_transform(df):
-        a = df["position"].unique()
-        #各部位を新たな部位ごとにリストにする
-        head = list(filter(lambda x: '頭部' in x,a))
-        brain = list(filter(lambda x: '脳' in x,a))
-        inn = list(filter(lambda x: '内耳(後頭蓋窩)' in x,a))
-        pitu = list(filter(lambda x: '下垂体' in x,a))
-        me  = list(filter(lambda x: '眼窩' in x,a))
-        td  = list(filter(lambda x: 'MRdevice頭頸部' in x,a))
-        sinus = list(filter(lambda x: '副鼻腔' in x,a))
-        gaku = list(filter(lambda x: '顎' in x,a))
-        
-        
-        head = head + brain + inn +pitu +me +td + sinus +gaku
-
-        kasik = list(filter(lambda x: '下肢血管' in x,a))
-
-        zyoushik = list(filter(lambda x: '上肢血管' in x,a))
-
-        abd = list(filter(lambda x: '上腹部' in x,a))
-        mrcp = list(filter(lambda x: '胆道' in x,a))
-        ht = list(filter(lambda x: 'MRdevice腹部' in x,a))
-
-        abd =abd + mrcp +ht
-
-        uabd = list(filter(lambda x: '下腹部' in x,a))
-        uro = list(filter(lambda x: '腎' in x,a))
-        pro = list(filter(lambda x: '前立腺' in x,a))
-        u = list(filter(lambda x: '膀胱' in x,a))
-        pel = list(filter(lambda x: '骨盤' in x,a))
-        uro2 = list(filter(lambda x: '尿路' in x,a))
-        tyou = list(filter(lambda x: '腸管(経口法)' in x,a))
-
-        uabd = uabd + pel + uro + pro + u + pel +uro2 +tyou
-
-        spine = list(filter(lambda x: '全脊椎' in x,a))
-        spine2 = list(filter(lambda x: '椎' in x,a))
-        spine =spine +spine2
-
-        neck = list(filter(lambda x: '頚部' in x,a))
-
-        ch = list(filter(lambda x: '胸' in x,a))
-        ch2 = list(filter(lambda x: '縦隔' in x,a))
-        ch =ch +ch2
-
-        man = list(filter(lambda x: '乳' in x,a))
-
-
-        afg = list(filter(lambda x: '胎児' in x,a))
-
-        hand = list(filter(lambda x: '手' in x,a))
-        foot = list(filter(lambda x: '足' in x,a))
-
-        zs = list(filter(lambda x: '上肢' in x,a))
-        hiji = list(filter(lambda x: '肘' in x,a))
-        ude = list(filter(lambda x: '上腕' in x,a))
-        zen = list(filter(lambda x: '前腕' in x,a))
-        kata = list(filter(lambda x: '肩' in x,a))
-
-        zs = zs + hiji + ude +zen +kata
-
-        ks = list(filter(lambda x: '下肢' in x,a))
-        katai = list(filter(lambda x: '下腿' in x,a))
-        hip = list(filter(lambda x: '股関節' in x,a))
-        hemo = list(filter(lambda x: '大腿部' in x,a))
-        knee = list(filter(lambda x: '膝' in x,a))
-
-        ks = ks + katai + hip +hemo + knee
-        
-        heart = list(filter(lambda x: '心臓' in x,a))
-        
-
-        #部位名の変更
-        df['position']=df["position"].replace(head, 'brain')
-        df['position']=df["position"].replace(kasik, 'blood vessel(leg)')
-        df['position']=df["position"].replace(zyoushik, 'blood vessel(upper)')
-        df['position']=df["position"].replace(abd, 'abdomen')
-        df['position']=df["position"].replace(uabd, 'pelvis')
-        df['position']=df["position"].replace(spine, 'spine')
-        df['position']=df["position"].replace(neck, 'neck')
-        df['position']=df["position"].replace(ch, 'chest')
-        df['position']=df["position"].replace(man, 'breast')
-        df['position']=df["position"].replace(afg, 'fetus')
-        df['position']=df["position"].replace(hand, 'hand')
-        df['position']=df["position"].replace(foot, 'foot')
-        df['position']=df["position"].replace(zs, 'upper_limb')
-        df['position']=df["position"].replace(ks, 'lower_limb')
-        df['position']=df["position"].replace(heart, 'heart')
-        
-
-        return df
 ###
 section_dic={  "脳内":"neurology", 
                "内泌": "endocrinology",
@@ -336,9 +194,6 @@ def rename_section(df):
     return df
 
 def exam_preprosses(df):
-    df=rename_section(df)
-    
-    df_section =one_hot(df,'section')
     # sectionの主成分分析モデルの作成
     pca = PCA(n_components=0.9)
     pca.fit(df_section)
@@ -368,41 +223,4 @@ def exam_preprosses(df):
 
 
 
-def to_vec(df):
-    FT=FastText_Vectrizer("model/fasttext_meishi_model_100.bin")
-    Tovec = FT.Vectrizer
-    
-    MODEL_NAME = "model/strf_sonoisa_sentence-bert-base-ja-mean-tokens-v232.75.10"
-    word_embedding_model = models.Transformer(MODEL_NAME, max_seq_length=75)
-    pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension(), pooling_mode='mean')
-    model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
-    train_embeddings=np.load('exam_data/sonoisa_vec/sbvec_so.npy')
-    # 主成分分析モデルの作成
-    pca = PCA(n_components=0.9)
-    pca.fit(train_embeddings)
-    pca_comp = np.asarray(pca.components_)
-    #pcaのパラメータ保存
-    np.save('pca_comp_BERT', pca_comp)
-    #pca_comp=np.load('pca_comp.npy')
-    # 主成分分析モデルをBERTの最後に足す
-    new_dimension=139    
-    dense = models.Dense(in_features=model.get_sentence_embedding_dimension(), out_features=new_dimension, bias=False, activation_function=torch.nn.Identity())
-    dense.linear.weight = torch.nn.Parameter(torch.tensor(pca_comp))
-    model.add_module('dense', dense)
-    
-    df['new_diagnosis'] = df['diagnosis'].copy().apply(meishi)
-    df_vec = df['new_diagnosis'].apply(Tovec)
-    df_vec=list(df_vec)
-    num=df_vec[0].shape[0]
-    col_name = ["diag_vec"+str(i) for i in range(num)]
-    df_vec=pd.DataFrame(df_vec,columns=col_name)
-    df = pd.concat([df,df_vec],axis=1)
-    
-    sBERT = model.encode(df["purpose"])
-    sBERT=list(sBERT)
-    num=sBERT[0].shape[0]
-    col_name = ["pur_vec"+str(i) for i in range(num)]
-    sBERT=pd.DataFrame(sBERT,columns=col_name)
-    df = pd.concat([df,sBERT],axis=1)
-    
-    return df
+
