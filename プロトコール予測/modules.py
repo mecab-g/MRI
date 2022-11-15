@@ -7,6 +7,8 @@ import numpy as np
 import fasttext 
 from sklearn.decomposition import PCA
 from sentence_transformers import models, losses, evaluation, SentenceTransformer
+import mojimoji
+from sklearn.utils import class_weight
 
 #onehotをつなげる
 def one_hot(df, col):
@@ -35,14 +37,15 @@ def ShowList(df, label):
 
 #目的を書き換えたリストを2つとdfを2つ入力で合わせたdfが出力される。
 #年齢は半分はクラスごとの平均の正規分布からランダムに変更
-def makeAug(df, List):
+def makeAug(df, List, YC=True):
     df2 = df.copy()
     #df.loc[:,'purpose']= List1
     #df2.loc[:,'purpose']= List2
     num=int(df2['year'].mean())
     generator = np.random.default_rng()
     rnd = generator.normal(loc=num, scale=10, size=len(df))
-    df2.loc[:,'year']=rnd
+    if YC==True:
+        df2.loc[:,'year']=rnd
     df = pd.concat([df, df2], ignore_index=True)
     df['year'] = df['year'].round().astype('int')
     df.loc[:,'purpose']= List
@@ -193,6 +196,38 @@ def rename_section(df):
     df.rename(columns=section_dic, inplace=True)
     return df
 
+def CSVfordf(csv):
+    df = pd.read_csv(csv)
+    # 半角、スペース、小文字修正
+    df['diagnosis'] = df['diagnosis'].map(mojimoji.zen_to_han)
+    df['purpose'] = df['purpose'].map(mojimoji.zen_to_han)
+    df['diagnosis']=df['diagnosis'].str.replace(' ', '')
+    df['purpose']=df['purpose'].str.replace(' ', '')
+    df['diagnosis']=df['diagnosis'].str.lower()
+    df['purpose']=df['purpose'].str.lower()
+    df['new_diagnosis'] = df['diagnosis'].copy().apply(meishi)
+    # 重複をなくす
+    df['new_diagnosis']=df['new_diagnosis'].map(set)
+    df['new_diagnosis']=df['new_diagnosis'].map(list)
+
+    # fasttextをインスタンス化
+    from modules import FastText_Vectrizer
+    FT=FastText_Vectrizer("../data/model/fasttext_meishi_model_100.bin")
+    Tovec = FT.Vectrizer
+    
+    # new_diagnosis（名詞群）をベクトル化し平均をdfに追加
+    df_vec = df['new_diagnosis'].apply(Tovec)
+    
+    # カラム名を変更する
+    df_vec=list(df_vec)
+    num=df_vec[0].shape[0]
+    col_name = ["Dvec"+str(i) for i in range(num)]
+    df_vec=pd.DataFrame(df_vec,columns=col_name)
+    df = pd.concat([df,df_vec],axis=1)
+    
+    return df
+
+
 def exam_preprosses(df):
     # sectionの主成分分析モデルの作成
     pca = PCA(n_components=0.9)
@@ -221,6 +256,141 @@ def exam_preprosses(df):
 
     return df
 
+#sentencebert
+def sBERT_model(path):
+    # sBERTファインチューニングしたのモデル
+    MODEL_NAME = "../data/model/strf_sonoisa_sentence-bert-base-ja-mean-tokens-v232.75.10"
+    word_embedding_model = models.Transformer(MODEL_NAME, max_seq_length=75)
+    pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension(), pooling_mode='mean')
+    model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
+
+    # 学習データを上のモデルでベクトル変換したデータ
+    train_embeddings=np.load('../data/exam_data/sonoisa_vec/sbvec_so.npy')
+
+    # 主成分分析モデルの作成
+    pca = PCA(n_components=0.9)
+    pca.fit(train_embeddings)
+    pca_comp = np.asarray(pca.components_)
+    #pcaのパラメータ保存
+    np.save('pca_comp_BERT', pca_comp)
+    #pca_comp=np.load('pca_comp.npy')
+    # 主成分分析モデルをBERTの最後に足す
+    new_dimension=139    
+    dense = models.Dense(in_features=model.get_sentence_embedding_dimension(), 
+                         out_features=new_dimension, bias=False, 
+                         activation_function=torch.nn.Identity())
+    dense.linear.weight = torch.nn.Parameter(torch.tensor(pca_comp))
+    model.add_module('dense', dense)
+    
+    return model
+
+#modelの保存
+#pd.to_pickle(model, 'smodel.pkl')
+def use_sBERT_model(df, model, path):
+    #カラム名変更
+    sBERT = model.encode(df["purpose"])
+    sBERT=list(sBERT)
+    num=sBERT[0].shape[0]
+    col_name = ["P(S)vec"+str(i) for i in range(num)]
+    sBERT=pd.DataFrame(sBERT,columns=col_name)
+    df_sBERT = pd.concat([df,sBERT],axis=1)
+    df_sBERT.to_csv(path)    
+    
+    return df_sBERT
 
 
+def use_fasttext_model(df, model, path):
+        # fasttextをインスタンス化
+    from modules import FastText_Vectrizer
+    FT=FastText_Vectrizer(model)
+    Tovec = FT.Vectrizer
+    # new_diagnosis（名詞群）をベクトル化し平均をdfに追加
+    df_vec = df['purpose'].apply(Tovec)
+    
+        # カラム名を変更する
+    df_vec=list(df_vec)
+    num=df_vec[0].shape[0]
+    col_name = ["P(f)vec"+str(i) for i in range(num)]
+    df_vec=pd.DataFrame(df_vec,columns=col_name)
+    df_ft = pd.concat([df,df_vec],axis=1)
+    
+        # ベクトルデータへ変換後のデータを保存
+    df_ft.to_csv("CSVs/ft_data.csv")
+    
+    return df_ft
+
+def label_encording(df):
+    from sklearn import preprocessing
+    lbl_s = preprocessing.LabelEncoder()
+    lbl_s.fit(df['section'])
+    lbl_section = lbl_s.transform(df['section'])
+
+    lbl_p = preprocessing.LabelEncoder()
+    lbl_p.fit(df['position'])
+    lbl_position = lbl_p.transform(df['position'])
+
+    lbl_l = preprocessing.LabelEncoder()
+    lbl_l.fit(df['label'])
+    lbl_label = lbl_l.transform(df['label'])
+    
+    y = lbl_label
+    X = df.drop([ 'label', 'section', 'position', 'new_diagnosis'], axis=1)
+    X['sec_lbl'] = lbl_section
+    X['pos_lbl'] = lbl_position
+
+    return X ,y
+
+def Add_class_wight(X, y):
+    class_weights = list(class_weight.compute_class_weight('balanced', 
+                                                           classes=np.unique(y),
+                                                           y=y)
+                        )
+    w_array = np.ones(y.shape[0], dtype = 'float16')
+    for i, val in enumerate(y):
+        w_array[i] = class_weights[val]
+    
+    
+    
+    return w_array
+
+
+
+
+
+def create_xg_model():
+    categorical_features = {*sorted(['pos_lbl', 'sec_lbl'])} 
+    lgb_train = lgb.Dataset(X_train, y_train,
+                        categorical_feature=categorical_features,
+                        free_raw_data=False,
+                        weight=w_array
+                        )
+    # 検証用
+    lgb_eval = lgb.Dataset(X_eval, y_eval, reference=lgb_train,
+                       categorical_feature=categorical_features,
+                       free_raw_data=False,
+                       weight=np.ones(len(X_eval)).astype('float16'))
+    
+    params = {'task': 'train',                # 学習、トレーニング ⇔　予測predict
+          'boosting_type': 'gbdt',        # 勾配ブースティング
+          'objective': 'multiclass',      # 目的関数：多値分類、マルチクラス分類
+          'metric': 'multi_logloss',      # 分類モデルの性能を測る指標
+          'num_class': 55,                 # 目的変数のクラス数
+          'learning_rate': 0.02,          # 学習率（初期値0.1）
+          'num_leaves': 23,               # 決定木の複雑度を調整（初期値31）
+          'min_data_in_leaf': 1,          # データの最小数（初期値20）
+         }
+    
+    evaluation_results = {}                                     # 学習の経過を保存する箱
+    model = lgb.train(params,                                   # 上記で設定したパラメータ
+                  lgb_train,                                # 使用するデータセット
+                  num_boost_round=1000,                     # 学習の回数
+                  valid_names=['train', 'valid'],           # 学習経過で表示する名称
+                  valid_sets=[lgb_train, lgb_eval],         # モデル検証のデータセット
+                  evals_result=evaluation_results,          # 学習の経過を保存
+                  categorical_feature=categorical_features, # カテゴリー変数を設定
+                  early_stopping_rounds=20,                 # アーリーストッピング
+                  verbose_eval=10)  
+    
+    return model, evaluation_results
+    
 
