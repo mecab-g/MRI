@@ -354,43 +354,93 @@ def Add_class_wight(X, y):
     return w_array
 
 
+############################# LBGM
 
 
-
-def create_xg_model():
-    categorical_features = {*sorted(['pos_lbl', 'sec_lbl'])} 
-    lgb_train = lgb.Dataset(X_train, y_train,
-                        categorical_feature=categorical_features,
-                        free_raw_data=False,
-                        weight=w_array
-                        )
+def run_LGBTM(X_train_cv, y_train_cv,X_eval_cv, y_eval_cv ):
+     # 学習用
+    lgb_train = lgb.Dataset(X_train_cv, y_train_cv,
+                            categorical_feature=categorical_features,
+                            free_raw_data=False,
+                            weight=w_array)
     # 検証用
-    lgb_eval = lgb.Dataset(X_eval, y_eval, reference=lgb_train,
-                       categorical_feature=categorical_features,
-                       free_raw_data=False,
-                       weight=np.ones(len(X_eval)).astype('float16'))
+    lgb_eval = lgb.Dataset(X_eval_cv, y_eval_cv, reference=lgb_train,
+                           categorical_feature=categorical_features,
+                           free_raw_data=False,
+                           weight=np.ones(len(X_eval_cv)).astype('float16'))
     
+    # パラメータを設定
     params = {'task': 'train',                # 学習、トレーニング ⇔　予測predict
-          'boosting_type': 'gbdt',        # 勾配ブースティング
-          'objective': 'multiclass',      # 目的関数：多値分類、マルチクラス分類
-          'metric': 'multi_logloss',      # 分類モデルの性能を測る指標
-          'num_class': 55,                 # 目的変数のクラス数
-          'learning_rate': 0.02,          # 学習率（初期値0.1）
-          'num_leaves': 23,               # 決定木の複雑度を調整（初期値31）
-          'min_data_in_leaf': 1,          # データの最小数（初期値20）
-         }
+              'boosting_type': 'gbdt',        # 勾配ブースティング
+              'objective': 'multiclass',      # 目的関数：多値分類、マルチクラス分類
+              'metric': 'multi_logloss',      # 分類モデルの性能を測る指標
+              'num_class': 55,                 # 目的変数のクラス数
+              'learning_rate': 0.02,          # 学習率（初期値0.1）
+              'num_leaves': 23,               # 決定木の複雑度を調整（初期値31）
+              'min_data_in_leaf': 1,          # データの最小数（初期値20）
+             }
     
+    # 学習
     evaluation_results = {}                                     # 学習の経過を保存する箱
     model = lgb.train(params,                                   # 上記で設定したパラメータ
-                  lgb_train,                                # 使用するデータセット
-                  num_boost_round=1000,                     # 学習の回数
-                  valid_names=['train', 'valid'],           # 学習経過で表示する名称
-                  valid_sets=[lgb_train, lgb_eval],         # モデル検証のデータセット
-                  evals_result=evaluation_results,          # 学習の経過を保存
-                  categorical_feature=categorical_features, # カテゴリー変数を設定
-                  early_stopping_rounds=20,                 # アーリーストッピング
-                  verbose_eval=10)  
+                      lgb_train,                                # 使用するデータセット
+                      num_boost_round=1000,                     # 学習の回数
+                      valid_names=['train', 'valid'],           # 学習経過で表示する名称
+                      valid_sets=[lgb_train, lgb_eval],         # モデル検証のデータセット
+                      evals_result=evaluation_results,          # 学習の経過を保存
+                      categorical_feature=categorical_features, # カテゴリー変数を設定
+                      early_stopping_rounds=20,                 # アーリーストッピング# 学習
+                      verbose_eval=-1)                          # 学習の経過の非表示
     
-    return model, evaluation_results
+     # テストデータで予測する
+    y_pred = model.predict(X_test, num_iteration=model.best_iteration)
+    y_pred_max = np.argmax(y_pred, axis=1)
     
+    # Accuracy を計算する
+    accuracy = sum(y_test == y_pred_max) / len(y_test)
+    print('accuracy:', accuracy)
+    
+    # 学習が終わったモデルをリストに入れておく
+    models.append(model) 
+    return evaluation_results
 
+###################################  NN
+import tensorflow as tf
+from tensorflow import keras
+from keras import Model
+from keras.layers import Dense
+from keras.layers import BatchNormalization
+from keras.layers import Dropout
+from keras.layers import Input
+from keras.optimizers import Adam
+from keras.losses import SparseCategoricalCrossentropy
+
+def make_nn_model(x_train, class_num):
+    
+    EPOCHS = 10 #100
+    BATCH_SIZE = 3 #2048
+    
+    input_num = Input(shape=(x_train.shape[1],))
+    x_num = Dense(200, activation='relu')(input_num)
+    x_num = BatchNormalization()(x_num)
+    x_num = Dropout(0.2)(x_num)
+    
+    x_num = Dense(100, activation='relu')(x_num)
+    x_num = BatchNormalization()(x_num)
+    x_num = Dropout(0.2)(x_num)
+    
+    x_num = Dense(100, activation='relu')(x_num)
+    x_num = BatchNormalization()(x_num)
+    x_num = Dropout(0.1)(x_num)
+    
+    out = Dense(class_num, activation='softmax')(x_num)
+    
+    model = Model(inputs=input_num, outputs=out)
+  
+    model.compile(
+        optimizer=Adam(learning_rate=1e-3),
+        loss=SparseCategoricalCrossentropy(),
+        metrics=['accuracy']
+        )
+
+    return model
