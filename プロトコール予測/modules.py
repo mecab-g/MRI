@@ -6,9 +6,15 @@ import pandas as pd
 import numpy as np
 import fasttext 
 from sklearn.decomposition import PCA
+from sklearn.metrics import classification_report, confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+
 from sentence_transformers import models, losses, evaluation, SentenceTransformer
 import mojimoji
 from sklearn.utils import class_weight
+
+import lightgbm as lgb
 
 #onehotをつなげる
 def one_hot(df, col):
@@ -357,15 +363,15 @@ def Add_class_wight(X, y):
 ############################# LBGM
 
 
-def run_LGBTM(X_train_cv, y_train_cv,X_eval_cv, y_eval_cv ):
-     # 学習用
+def run_LGBM(X_train_cv, y_train_cv,X_eval_cv, y_eval_cv ,CF,CW):
+    # 学習用
     lgb_train = lgb.Dataset(X_train_cv, y_train_cv,
-                            categorical_feature=categorical_features,
+                            categorical_feature=CF,
                             free_raw_data=False,
-                            weight=w_array)
+                            weight=CW)
     # 検証用
     lgb_eval = lgb.Dataset(X_eval_cv, y_eval_cv, reference=lgb_train,
-                           categorical_feature=categorical_features,
+                           categorical_feature=CF,
                            free_raw_data=False,
                            weight=np.ones(len(X_eval_cv)).astype('float16'))
     
@@ -388,21 +394,22 @@ def run_LGBTM(X_train_cv, y_train_cv,X_eval_cv, y_eval_cv ):
                       valid_names=['train', 'valid'],           # 学習経過で表示する名称
                       valid_sets=[lgb_train, lgb_eval],         # モデル検証のデータセット
                       evals_result=evaluation_results,          # 学習の経過を保存
-                      categorical_feature=categorical_features, # カテゴリー変数を設定
+                      categorical_feature=CF, # カテゴリー変数を設定
                       early_stopping_rounds=20,                 # アーリーストッピング# 学習
                       verbose_eval=-1)                          # 学習の経過の非表示
     
-     # テストデータで予測する
-    y_pred = model.predict(X_test, num_iteration=model.best_iteration)
-    y_pred_max = np.argmax(y_pred, axis=1)
-    
-    # Accuracy を計算する
-    accuracy = sum(y_test == y_pred_max) / len(y_test)
-    print('accuracy:', accuracy)
-    
-    # 学習が終わったモデルをリストに入れておく
-    models.append(model) 
-    return evaluation_results
+    return model, evaluation_results
+
+
+def FI_LGBM(models, X):
+    Is = []
+
+    for i in range(len(models)):
+        # feature importanceを表示
+        importance = pd.DataFrame(models[i].feature_importance(), index=X.columns, columns=['importance'])
+        Is.append(importance)
+ 
+    return Is
 
 ###################################  NN
 import tensorflow as tf
@@ -425,6 +432,14 @@ def make_nn_model(x_train, class_num):
     x_num = BatchNormalization()(x_num)
     x_num = Dropout(0.2)(x_num)
     
+    x_num = Dense(200, activation='relu')(x_num)
+    x_num = BatchNormalization()(x_num)
+    x_num = Dropout(0.2)(x_num)
+    
+    x_num = Dense(200, activation='relu')(x_num)
+    x_num = BatchNormalization()(x_num)
+    x_num = Dropout(0.2)(x_num)
+    
     x_num = Dense(100, activation='relu')(x_num)
     x_num = BatchNormalization()(x_num)
     x_num = Dropout(0.2)(x_num)
@@ -438,9 +453,41 @@ def make_nn_model(x_train, class_num):
     model = Model(inputs=input_num, outputs=out)
   
     model.compile(
-        optimizer=Adam(learning_rate=1e-3),
+        optimizer=Adam(learning_rate=1e-2),
         loss=SparseCategoricalCrossentropy(),
         metrics=['accuracy']
         )
 
     return model
+
+
+
+def make_results(y_pred, y_test):
+    y_pred_max = np.argmax(y_pred, axis=1)
+    df_result = pd.DataFrame(list(zip(y_test, y_pred_max)), columns = ['true','pred'])
+    accuracy = sum(y_test == y_pred_max) / len(y_test)
+    df_report = pd.DataFrame(classification_report(y_pred_max, y_test, 
+                                               output_dict=True)).T
+    
+    sns.heatmap(confusion_matrix(df_result['true'],df_result['pred']), annot=True)
+    plt.xlabel("pred")
+    plt.ylabel('true')
+    
+    return (df_result, df_report)
+
+def model_evaluation(models, X_test, y_test, method='LBGM'):
+    results = []
+    reports = []
+    
+    for i in range(len(models)):
+        if method=='LGBM':
+            y_pred = models[i].predict(X_test, num_iteration=models[i].best_iteration)
+        
+        else :
+            y_pred = models[i].predict(X_test)
+            
+        result, report = make_results(y_pred, y_test)
+        results.append(result)
+        reports.append(report)
+        
+    return results, reports
