@@ -52,6 +52,8 @@ def makeAug(df, List, YC=True):
     rnd = generator.normal(loc=num, scale=10, size=len(df))
     if YC==True:
         df2.loc[:,'year']=rnd
+        
+
     df = pd.concat([df, df2], ignore_index=True)
     df['year'] = df['year'].round().astype('int')
     df.loc[:,'purpose']= List
@@ -198,7 +200,7 @@ section_dic={  "脳内":"neurology",
                "形外": "plastic surgery",
   }    
 
-def rename_section(df):
+def rename_section(df):#不要
     df.rename(columns=section_dic, inplace=True)
     return df
 
@@ -234,7 +236,7 @@ def CSVfordf(csv):
     return df
 
 
-def exam_preprosses(df):
+def exam_preprosses(df):#不要
     # sectionの主成分分析モデルの作成
     pca = PCA(n_components=0.9)
     pca.fit(df_section)
@@ -381,7 +383,7 @@ def run_LGBM(X_train_cv, y_train_cv,X_eval_cv, y_eval_cv ,CF,CW):
               'objective': 'multiclass',      # 目的関数：多値分類、マルチクラス分類
               'metric': 'multi_logloss',      # 分類モデルの性能を測る指標
               'num_class': 55,                 # 目的変数のクラス数
-              'learning_rate': 0.02,          # 学習率（初期値0.1）
+              'learning_rate': 0.05,          # 学習率（初期値0.1）
               'num_leaves': 23,               # 決定木の複雑度を調整（初期値31）
               'min_data_in_leaf': 1,          # データの最小数（初期値20）
              }
@@ -395,7 +397,7 @@ def run_LGBM(X_train_cv, y_train_cv,X_eval_cv, y_eval_cv ,CF,CW):
                       valid_sets=[lgb_train, lgb_eval],         # モデル検証のデータセット
                       evals_result=evaluation_results,          # 学習の経過を保存
                       categorical_feature=CF, # カテゴリー変数を設定
-                      early_stopping_rounds=20,                 # アーリーストッピング# 学習
+                      early_stopping_rounds=20,                 # アーリーストッピング
                       verbose_eval=-1)                          # 学習の経過の非表示
     
     return model, evaluation_results
@@ -423,9 +425,6 @@ from keras.optimizers import Adam
 from keras.losses import SparseCategoricalCrossentropy
 
 def make_nn_model(x_train, class_num):
-    
-    EPOCHS = 10 #100
-    BATCH_SIZE = 3 #2048
     
     input_num = Input(shape=(x_train.shape[1],))
     x_num = Dense(200, activation='relu')(input_num)
