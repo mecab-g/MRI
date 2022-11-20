@@ -323,7 +323,7 @@ def use_fasttext_model(df, model, path):
     df_ft = pd.concat([df,df_vec],axis=1)
     
         # ベクトルデータへ変換後のデータを保存
-    df_ft.to_csv("CSVs/ft_data.csv")
+    df_ft.to_csv("../CSVs/ft_data.csv")
     
     return df_ft
 
@@ -490,3 +490,12 @@ def model_evaluation(models, X_test, y_test, method='LBGM'):
         reports.append(report)
         
     return results, reports
+
+
+def  kfold_report(reports, path):
+    df = pd.concat(reports, axis=1).T
+    df = df.drop(['support'], axis=0)
+    Kfold_result=df[['accuracy','macro avg','weighted avg']].loc[['precision']].mean()
+    Kfold_result.to_csv(path)  
+    
+    return  Kfold_result
