@@ -382,7 +382,7 @@ def run_LGBM(X_train_cv, y_train_cv,X_eval_cv, y_eval_cv ,CF,CW):
               'boosting_type': 'gbdt',        # 勾配ブースティング
               'objective': 'multiclass',      # 目的関数：多値分類、マルチクラス分類
               'metric': 'multi_logloss',      # 分類モデルの性能を測る指標
-              'num_class': 55,                 # 目的変数のクラス数
+              'num_class': 54,                 # 目的変数のクラス数
               'learning_rate': 0.05,          # 学習率（初期値0.1）
               'num_leaves': 23,               # 決定木の複雑度を調整（初期値31）
               'min_data_in_leaf': 1,          # データの最小数（初期値20）
@@ -495,7 +495,7 @@ def model_evaluation(models, X_test, y_test, method='LBGM'):
 def  kfold_report(reports, path):
     df = pd.concat(reports, axis=1).T
     df = df.drop(['support'], axis=0)
-    Kfold_result=df[['accuracy','macro avg','weighted avg']].loc[['precision']].mean()
+    Kfold_result=df[['accuracy','macro avg','weighted avg']].mean()
     Kfold_result.to_csv(path)  
     
     return  Kfold_result
