@@ -214,15 +214,20 @@ def CSVfordf(csv):
     df['diagnosis']=df['diagnosis'].str.lower()
     df['purpose']=df['purpose'].str.lower()
     df['new_diagnosis'] = df['diagnosis'].copy().apply(meishi)
+    df['ft_purpose'] = df['purpose'].copy().apply(meishi)
+    df['sB_purpose'] = df['purpose'].copy().apply(wakachi)
+    
     # 重複をなくす
     df['new_diagnosis']=df['new_diagnosis'].map(set)
     df['new_diagnosis']=df['new_diagnosis'].map(list)
+    
+    return df
 
-    # fasttextをインスタンス化
+def diago(df):
+# fasttextをインスタンス化
     from modules import FastText_Vectrizer
     FT=FastText_Vectrizer("../data/model/fasttext_meishi_model_100.bin")
     Tovec = FT.Vectrizer
-    
     # new_diagnosis（名詞群）をベクトル化し平均をdfに追加
     df_vec = df['new_diagnosis'].apply(Tovec)
     
@@ -232,7 +237,6 @@ def CSVfordf(csv):
     col_name = ["Dvec"+str(i) for i in range(num)]
     df_vec=pd.DataFrame(df_vec,columns=col_name)
     df = pd.concat([df,df_vec],axis=1)
-    
     return df
 
 
