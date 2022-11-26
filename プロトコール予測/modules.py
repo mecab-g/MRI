@@ -80,10 +80,11 @@ def wakachi(Str):
     words = ' '.join(words)
     return words
 
+
 #名詞のみ
 def meishi(text):
     import MeCab
-    stop_words= [',','｡','.','右','左','両側','*','(',')','委任',':','。','、',',','.','+','疑い','･']
+    stop_words= [',','｡','.','右','左','両側','*','(',')','委任',':','。','、',',','.','+','疑い','･','の']
     mecab = MeCab.Tagger(r"-d /var/lib/mecab/dic/ipadic-utf8/ -u dic/MANBYO_201907_Dic-utf8.dic")
     result = mecab.parse(text)
     lines = result.split('\n')
@@ -104,9 +105,9 @@ def meishi(text):
         if len(word) < 1:#  1文字、0文字（空文字）は除外
             continue
         words.append(word)
-
+    #ftに渡す場合はリストで
     #words = ' '.join(words)
-    return(words)
+    return words
 
 # fastTextでベクトル化する
 # モデルを入れて、インスタンス化しVectrizerで単語リストを入れるとベクトルが平均されて出力される
@@ -204,7 +205,12 @@ def rename_section(df):#不要
     df.rename(columns=section_dic, inplace=True)
     return df
 
-def CSVfordf(csv):
+def NR(Str):
+    S = set(Str)
+    S = list(S)
+    return S
+
+def preprosess(csv):
     df = pd.read_csv(csv)
     # 半角、スペース、小文字修正
     df['diagnosis'] = df['diagnosis'].map(mojimoji.zen_to_han)
@@ -213,13 +219,18 @@ def CSVfordf(csv):
     df['purpose']=df['purpose'].str.replace(' ', '')
     df['diagnosis']=df['diagnosis'].str.lower()
     df['purpose']=df['purpose'].str.lower()
+    
+    return df
+
+def tokens(df):
     df['new_diagnosis'] = df['diagnosis'].copy().apply(meishi)
+    df['new_diagnosis'] = df['new_diagnosis'].map(NR)
+    return df
+    
+
+def tokens2(df):
     df['ft_purpose'] = df['purpose'].copy().apply(meishi)
     df['sB_purpose'] = df['purpose'].copy().apply(wakachi)
-    
-    # 重複をなくす
-    df['new_diagnosis']=df['new_diagnosis'].map(set)
-    df['new_diagnosis']=df['new_diagnosis'].map(list)
     
     return df
 
