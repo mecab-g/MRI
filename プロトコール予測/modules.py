@@ -64,7 +64,7 @@ def makeAug(df, List, YC=True):
 #わかちがき        
 def wakachi(Str):
     import MeCab
-    stop_words=  [',','｡','.','右','左','*','(',')','委任',':','。','、',',','.','+']
+    stop_words=  [',','｡','.','右','左','*','(',')','委任',':','。','、',',','.','+','､']
     tagger = MeCab.Tagger(r"-d /var/lib/mecab/dic/ipadic-utf8/ -u dic/MANBYO_201907_Dic-utf8.dic -Owakati")              
     result = tagger.parse(Str).split()
     words = []
@@ -84,7 +84,7 @@ def wakachi(Str):
 #名詞のみ
 def meishi(text):
     import MeCab
-    stop_words= [',','｡','.','右','左','両側','*','(',')','委任',':','。','、',',','.','+','疑い','･','の']
+    stop_words= [',','｡','.','右','左','両側','*','(',')','委任',':','。','、',',','.','+','疑い','･','の','､']
     mecab = MeCab.Tagger(r"-d /var/lib/mecab/dic/ipadic-utf8/ -u dic/MANBYO_201907_Dic-utf8.dic")
     result = mecab.parse(text)
     lines = result.split('\n')
@@ -108,6 +108,18 @@ def meishi(text):
     #ftに渡す場合はリストで
     #words = ' '.join(words)
     return words
+
+
+###わかち確認用
+def pw(doc):
+    for word in doc:
+            print(word)
+            print('lllll')
+            
+#a= df['new_diagnosis'].iloc[1]
+#type(a)
+
+#df['new_diagnosis'].map(pw)
 
 # fastTextでベクトル化する
 # モデルを入れて、インスタンス化しVectrizerで単語リストを入れるとベクトルが平均されて出力される
