@@ -115,11 +115,24 @@ def pw(doc):
     for word in doc:
             print(word)
             print('lllll')
-            
-#a= df['new_diagnosis'].iloc[1]
-#type(a)
-
 #df['new_diagnosis'].map(pw)
+
+
+# fasttextモデル作成（ラベルなし）
+def makeftmodel(text, modelpath):
+    
+    import fasttext 
+    model= fasttext.train_unsupervised(input=text,dim=300, ws=7 ,model='skipgram', neg=8, 
+                                  epoch=10 ,minCount=1,minn=0 ,wordNgrams=0)#model{cbow, skipgram}
+    model.save_model(modelpath)
+##text_exsample
+# 11388    頭部 脳 視 神経 膠 腫 年 月 再燃 ､ 化学 療法 再開 後 終了 ､ follo w...
+# 11389                泌尿 器 系 下腹 部 前立 腺癌 の 疑い psa と 上昇 あり 精査
+# 11390               頭部 脳 転移 性 脳 腫瘍 の 疑い 脳 転移 の 有無 検索 目的 です
+# 11391    mra 脳 聴 神経 腫瘍 の 疑い 瀬田 耳鼻 咽喉 科 浅田 優子 先生 より 御 依頼...
+
+
+
 
 # fastTextでベクトル化する
 # モデルを入れて、インスタンス化しVectrizerで単語リストを入れるとベクトルが平均されて出力される
@@ -236,7 +249,7 @@ def preprosess(csv):
 
 def tokens(df):
     df['new_diagnosis'] = df['diagnosis'].copy().apply(meishi)
-    df['new_diagnosis'] = df['new_diagnosis'].map(NR)
+    #df['new_diagnosis'] = df['new_diagnosis'].map(NR)
     return df
     
 
@@ -459,14 +472,6 @@ def make_nn_model(x_train, class_num):
     x_num = Dropout(0.2)(x_num)
     
     x_num = Dense(200, activation='relu')(x_num)
-    x_num = BatchNormalization()(x_num)
-    x_num = Dropout(0.2)(x_num)
-    
-    x_num = Dense(200, activation='relu')(x_num)
-    x_num = BatchNormalization()(x_num)
-    x_num = Dropout(0.2)(x_num)
-    
-    x_num = Dense(100, activation='relu')(x_num)
     x_num = BatchNormalization()(x_num)
     x_num = Dropout(0.2)(x_num)
     
