@@ -248,14 +248,14 @@ def preprosess(csv):
     return df
 
 def tokens(df):
-    df['new_diagnosis'] = df['diagnosis'].copy().apply(meishi)
-    #df['new_diagnosis'] = df['new_diagnosis'].map(NR)
+    df['new_diagnosis'] = df['diagnosis'].map(meishi)
+    df['new_diagnosis'] = df['new_diagnosis'].map(NR)
     return df
     
 
 def tokens2(df):
-    df['ft_purpose'] = df['purpose'].copy().apply(meishi)
-    df['sB_purpose'] = df['purpose'].copy().apply(wakachi)
+    df['ft_purpose'] = df['purpose'].map(meishi)
+    df['sB_purpose'] = df['purpose'].map(wakachi)
     
     return df
 
@@ -334,9 +334,9 @@ def sBERT_model(path):
 
 #modelの保存
 #pd.to_pickle(model, 'smodel.pkl')
-def use_sBERT_model(df, model, path):
+def use_sBERT_model(df,colum ,model, path):
     #カラム名変更
-    sBERT = model.encode(df["purpose"])
+    sBERT = model.encode(df[colum])
     sBERT=list(sBERT)
     num=sBERT[0].shape[0]
     col_name = ["P(S)vec"+str(i) for i in range(num)]
@@ -347,13 +347,13 @@ def use_sBERT_model(df, model, path):
     return df_sBERT
 
 
-def use_fasttext_model(df, model, path):
+def use_fasttext_model(df,colum, model, path):
         # fasttextをインスタンス化
     from modules import FastText_Vectrizer
     FT=FastText_Vectrizer(model)
     Tovec = FT.Vectrizer
     # new_diagnosis（名詞群）をベクトル化し平均をdfに追加
-    df_vec = df['purpose'].apply(Tovec)
+    df_vec = df[colum].apply(Tovec)
     
         # カラム名を変更する
     df_vec=list(df_vec)
@@ -363,7 +363,7 @@ def use_fasttext_model(df, model, path):
     df_ft = pd.concat([df,df_vec],axis=1)
     
         # ベクトルデータへ変換後のデータを保存
-    df_ft.to_csv("../CSVs/ft_data.csv")
+    df_ft.to_csv(path)
     
     return df_ft
 
@@ -448,7 +448,10 @@ def FI_LGBM(models, X):
 
     for i in range(len(models)):
         # feature importanceを表示
-        importance = pd.DataFrame(models[i].feature_importance(), index=X.columns, columns=['importance'])
+        importance = pd.DataFrame(
+            models[i].feature_importance(importance_type='gain'), 
+            index=X.columns, 
+            columns=['importance']).sort_values('importance', ascending=False) 
         Is.append(importance)
  
     return Is
