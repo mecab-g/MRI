@@ -496,20 +496,22 @@ def make_nn_model(x_train, class_num):
 
 
 
-def make_results(y_pred, y_test):
+def make_results(y_pred, y_test, labels):
     y_pred_max = np.argmax(y_pred, axis=1)
     df_result = pd.DataFrame(list(zip(y_test, y_pred_max)), columns = ['true','pred'])
     accuracy = sum(y_test == y_pred_max) / len(y_test)
     df_report = pd.DataFrame(classification_report(y_pred_max, y_test, 
-                                               output_dict=True)).T
+                                                   output_dict=True,
+                                                   target_names=labels)).T
     
-    sns.heatmap(confusion_matrix(df_result['true'],df_result['pred']), annot=True)
+    sns.heatmap(confusion_matrix(df_result['true'], df_result['pred']), 
+                annot=True)
     plt.xlabel("pred")
     plt.ylabel('true')
     
     return (df_result, df_report)
 
-def model_evaluation(models, X_test, y_test, method='LBGM'):
+def model_evaluation(models, X_test, y_test, labels, method='LBGM'):
     results = []
     reports = []
     
@@ -520,7 +522,7 @@ def model_evaluation(models, X_test, y_test, method='LBGM'):
         else :
             y_pred = models[i].predict(X_test)
             
-        result, report = make_results(y_pred, y_test)
+        result, report = make_results(y_pred, y_test, labels)
         results.append(result)
         reports.append(report)
         
