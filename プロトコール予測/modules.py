@@ -447,12 +447,15 @@ def FI_LGBM(models, X):
     Is = []
 
     for i in range(len(models)):
-        # feature importanceを表示
-        importance = pd.DataFrame(
-            models[i].feature_importance(importance_type='gain'), 
-            index=X.columns, 
-            columns=['importance']).sort_values('importance', ascending=False) 
-        Is.append(importance)
+        # feature importance(gain)を表示
+        
+        cols = X.columns
+        f_importance = np.array(models[i].feature_importance(importance_type='gain')) 
+        f_importance = f_importance / np.sum(f_importance) # 正規化
+        df_importance = pd.DataFrame({'feature':cols, 'importance':f_importance})
+        df_importance = df_importance.sort_values('importance', ascending=False) # 降順ソート
+     
+        Is.append(df_importance)
  
     return Is
 
@@ -500,7 +503,7 @@ def make_results(y_pred, y_test, labels):
     y_pred_max = np.argmax(y_pred, axis=1)
     df_result = pd.DataFrame(list(zip(y_test, y_pred_max)), columns = ['true','pred'])
     accuracy = sum(y_test == y_pred_max) / len(y_test)
-    df_report = pd.DataFrame(classification_report(y_pred_max, y_test, 
+    df_report = pd.DataFrame(classification_report(y_test, y_pred_max, 
                                                    output_dict=True,
                                                    target_names=labels)).T
     
@@ -511,7 +514,7 @@ def make_results(y_pred, y_test, labels):
     
     return (df_result, df_report)
 
-def model_evaluation(models, X_test, y_test, labels, method='LBGM'):
+def model_evaluation(models, X_test, y_test, labels, method='LGBM'):
     results = []
     reports = []
     
@@ -529,10 +532,13 @@ def model_evaluation(models, X_test, y_test, labels, method='LBGM'):
     return results, reports
 
 
-def  kfold_report(reports, path):
+def  kfold_report(reports, path, path2):
     df = pd.concat(reports, axis=1).T
     df = df.drop(['support'], axis=0)
     Kfold_result=df[['accuracy','macro avg','weighted avg']].mean()
-    Kfold_result.to_csv(path)  
+    Kfold_std=df[['accuracy','macro avg','weighted avg']].std()
     
-    return  Kfold_result
+    Kfold_result.to_csv(path)
+    Kfold_std.to_csv(path2)  
+    
+    return  Kfold_result,Kfold_std
