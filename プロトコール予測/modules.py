@@ -507,38 +507,53 @@ def make_results(y_pred, y_test, labels):
                                                    output_dict=True,
                                                    target_names=labels)).T
     
-    sns.heatmap(confusion_matrix(df_result['true'], df_result['pred']), 
-                annot=True)
-    plt.xlabel("pred")
-    plt.ylabel('true')
+    #sns.heatmap(confusion_matrix(df_result['true'], df_result['pred']), 
+    #            annot=True)
+    #plt.xlabel("pred")
+    #plt.ylabel('true')
     
     return (df_result, df_report)
 
-def model_evaluation(models, X_test, y_test, labels, method='LGBM'):
+def model_evaluation(models, X_test, y_test, labels, id_test ,path ,method='LGBM'):
     results = []
     reports = []
+    preds = pd.DataFrame()
+    id_test.columns=['id']
+
     
     for i in range(len(models)):
+        
+        
         if method=='LGBM':
             y_pred = models[i].predict(X_test, num_iteration=models[i].best_iteration)
-        
+            pred = pd.DataFrame(y_pred)
+            pred = pd.concat([pred, id_test],axis=1)
+          
+          
         else :
             y_pred = models[i].predict(X_test)
+            pred = pd.DataFrame(y_pred)
+            pred = pd.concat([pred, id_test],axis=1)
+            
+        preds = pd.concat([preds,pred], axis=0).groupby("id").mean()
+        preds['y_test'] = y_test
+        
             
         result, report = make_results(y_pred, y_test, labels)
         results.append(result)
         reports.append(report)
         
-    return results, reports
+
+    preds.to_csv(path)  
+    return results, reports, preds
 
 
-def  kfold_report(reports, path, path2):
+def  kfold_report(reports, path):
     df = pd.concat(reports, axis=1).T
     df = df.drop(['support'], axis=0)
     Kfold_result=df[['accuracy','macro avg','weighted avg']].mean()
     Kfold_std=df[['accuracy','macro avg','weighted avg']].std()
     
-    Kfold_result.to_csv(path)
-    Kfold_std.to_csv(path2)  
+    df.to_csv(path)  
     
     return  Kfold_result,Kfold_std
