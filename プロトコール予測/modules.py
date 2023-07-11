@@ -527,23 +527,24 @@ def model_evaluation(models, X_test, y_test, labels, id_test ,path ,method='LGBM
         if method=='LGBM':
             y_pred = models[i].predict(X_test, num_iteration=models[i].best_iteration)
             pred = pd.DataFrame(y_pred)
-            pred = pd.concat([pred, id_test],axis=1)
+            pred = pd.concat([id_test, pred],axis=1)
           
           
         else :
             y_pred = models[i].predict(X_test)
             pred = pd.DataFrame(y_pred)
-            pred = pd.concat([pred, id_test],axis=1)
+            pred = pd.concat([id_test, pred],axis=1)
+            y_test = np.array(y_test)
             
         preds = pd.concat([preds,pred], axis=0).groupby("id").mean()
-        preds['y_test'] = y_test
+        
         
             
         result, report = make_results(y_pred, y_test, labels)
         results.append(result)
         reports.append(report)
         
-
+    preds['y_test'] = y_test
     preds.to_csv(path)  
     return results, reports, preds
 
